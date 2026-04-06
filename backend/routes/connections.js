@@ -1,88 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const Connection = require('../models/Connection');
+const connectionController = require('../controllers/connectionController');
 
-//  Send connection request
-router.post('/', auth, async (req, res) => {
-  try {
-    const { to, type } = req.body;
+// @route   GET /api/connections/received
+router.get('/received', auth, connectionController.getReceivedRequests);
 
-    //  Validation
-    if (!to || !type) {
-      return res.status(400).json({ message: 'to and type are required' });
-    }
-    const existing = await Connection.findOne({
-      from: req.user.userId,
-      to,
-      type
-    });
+// @route   GET /api/connections/sent
+router.get('/sent', auth, connectionController.getSentRequests);
 
-    if (existing) {
-      return res.status(400).json({ message: 'Request already sent' });
-    }
-    const connection = new Connection({
-      from: req.user.userId,
-      to,
-      type
-    });
+// @route   GET /api/connections/network
+router.get('/network', auth, connectionController.getNetwork);
 
-    await connection.save();
+// @route   POST /api/connections
+router.post('/', auth, connectionController.sendConnectionRequest);
 
-    res.status(201).json(connection);
+// @route   GET /api/connections
+router.get('/', auth, connectionController.getMyConnections);
 
-  } catch (err) {
-    console.error('Connection Error:', err); //  IMPORTANT
-    res.status(500).json({ message: err.message });
-  }
-});
+// @route   PUT /api/connections/:id
+router.put('/:id', auth, connectionController.updateConnectionStatus);
 
-
-//  Get my connections
-router.get('/', auth, async (req, res) => {
-  try {
-    const data = await Connection.find({
-      $or: [
-        { from: req.user.userId },
-        { to: req.user.userId }
-      ]
-    })
-      .populate('from', 'name')
-      .populate('to', 'name')
-      .sort({ createdAt: -1 });
-
-    res.json(data);
-
-  } catch (err) {
-    console.error('Fetch Error:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-
-router.put('/:id', auth, async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    const connection = await Connection.findById(req.params.id);
-
-    if (!connection) {
-      return res.status(404).json({ message: 'Not found' });
-    }
-
-    // Only receiver can accept/reject
-    if (connection.to.toString() !== req.user.userId) {
-      return res.status(403).json({ message: 'Not allowed' });
-    }
-
-    connection.status = status;
-    await connection.save();
-
-    res.json(connection);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+// @route   DELETE /api/connections/:id
+router.delete('/:id', auth, connectionController.deleteConnection);
 
 module.exports = router;

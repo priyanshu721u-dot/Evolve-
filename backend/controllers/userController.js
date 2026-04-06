@@ -1,0 +1,158 @@
+const User = require('../models/User');
+
+/**
+ * @desc    Get user by ID
+ * @route   GET /api/users/:id
+ * @access  Public
+ */
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Get user error:', error);
+    
+    // Handle invalid MongoDB ObjectId
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.status(500).json({ message: 'Error fetching user' });
+  }
+};
+
+/**
+ * @desc    Update user profile
+ * @route   PUT /api/users/profile
+ * @access  Private
+ */
+exports.updateProfile = async (req, res) => {
+  try {
+    // Fields that can be updated
+    const allowedUpdates = [
+      'name', 'bio', 'skills', 'college', 'location', 
+      'profileImage', 'linkedIn', 'github', 'website'
+    ];
+    
+    // Filter out fields that shouldn't be updated
+    const updates = {};
+    Object.keys(req.body).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = req.body[key];
+      }
+    });
+    
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      updates,
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Error updating profile' });
+  }
+};
+
+/**
+ * @desc    Search/filter users
+ * @route   GET /api/users/search?role=mentor&skill=React&location=Delhi
+ * @access  Public
+ */
+exports.searchUsers = async (req, res) => {
+  try {
+    const { role, skill, location, search } = req.query;
+    
+    let query = {};
+    
+    // Filter by role
+    if (role) {
+      query.role = role;
+    }
+    
+    // Filter by skill
+    if (skill) {
+      query.skills = { $in: [skill] };
+    }
+    
+    // Filter by location (case-insensitive partial match)
+    if (location) {
+      query.location = { $regex: location, $options: 'i' };
+    }
+    
+    // Search in name and bio
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { bio: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    const users = await User.find(query)
+      .select('-password')
+      .limit(50)
+      .sort({ createdAt: -1 });
+    
+    res.json(users);
+  } catch (error) {
+    console.error('Search users error:', error);
+    res.status(500).json({ message: 'Error searching users' });
+  }
+};
+
+/**
+ * @desc    Get all mentors with optional skill filter
+ * @route   GET /api/users/mentors?skill=React
+ * @access  Public
+ */
+exports.getMentors = async (req, res) => {
+  try {
+    const { skill } = req.query;
+    
+    let query = { role: 'mentor' };
+    
+    // Filter by skill if provided
+    if (skill) {
+      query.skills = { $in: [skill] };
+    }
+    
+    const mentors = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    res.json(mentors);
+  } catch (error) {
+    console.error('Get mentors error:', error);
+    res.status(500).json({ message: 'Error fetching mentors' });
+  }
+};
+
+/**
+ * @desc    Get projects by specific user
+ * @route   GET /api/users/:id/projects
+ * @access  Public
+ */
+exports.getUserProjects = async (req, res) => {
+  try {
+    const Project = require('../models/Project');
+    
+    const projects = await Project.find({ creator: req.params.id })
+      .populate('creator', 'name role')
+      .sort({ createdAt: -1 });
+    
+    res.json(projects);
+  } catch (error) {
+    console.error('Get user projects error:', error);
+    res.status(500).json({ message: 'Error fetching user projects' });
+  }
+};

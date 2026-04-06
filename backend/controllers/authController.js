@@ -50,7 +50,20 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       token,
-      user
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        bio: user.bio,
+        skills: user.skills,
+        college: user.college,
+        location: user.location,
+        profileImage: user.profileImage,
+        linkedIn: user.linkedIn,
+        github: user.github,
+        website: user.website
+      }
     });
 
   } catch (error) {
